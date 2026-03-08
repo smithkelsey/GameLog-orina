@@ -1,5 +1,5 @@
 node_modules/
-games_log.db/
+game_log.db/
 games_log.json/
 games_log.csv/
 .venv
