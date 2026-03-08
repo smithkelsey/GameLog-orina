@@ -1,5 +1,14 @@
+###################################
+#    Database for Played Games    #
+#     finished and unfinished     #
+#           Kelsey Smith          #
+###################################
+
 import sqlite3
-from datetime import datetime
+#from datetime import datetime
+import csv
+import json
+from typing import Any, Dict, List, Union
 
 game_log = "game_log.db"
 
@@ -39,7 +48,7 @@ def add_game(game_name, platform, genre, hours_played, year_started=None, year_c
     print("Game has been added.")
 
 # to view all games
-# ** ideally i want to try to get it where a specific game is selected, filters, or the whole table**
+# ** ideally i want to try to get it where a specific game is selected, filters, or the whole table** tk
 def view_all_games():
     conn = sqlite3.connect(game_log)
     curs = conn.cursor()
@@ -156,30 +165,90 @@ def update_status(game_id, status):
     conn.close()
     print("Game status has been updated.")
 
+def delete_game(game_id):
+    conn = sqlite3.connect(game_log)
+    curs = conn.cursor()
+
+    curs.execute("""
+                DELETE FROM game_log
+                WHERE id = ?
+                 """, (game_id,))
+    
+    conn.commit()
+    conn.close()
+    print("Game has been deleted.")
+
+# -----------------------------
+
+#### export_to_json and export_to_csv functions
+def export_to_json(file_name: str):
+    conn = sqlite3.connect(game_log)
+    curs = conn.cursor()
+    curs.execute("SELECT * FROM game_log;")
+    rows = curs.fetchall()
+    conn.close()
+
+    games_list: List[Dict[str, Any]] = []
+    for row in rows:
+        game_dict: Dict[str, Union[int, str, float]] = {
+            "id": row[0],
+            "game_name": row[1],
+            "platform": row[2],
+            "genre": row[3],
+            "hours_played": row[4],
+            "year_started": row[5],
+            "year_completed": row[6],
+            "status": row[7]
+        }
+        games_list.append(game_dict)
+
+    with open(file_name, 'w', encoding='utf-8') as json_file:
+        json.dump(games_list, json_file, indent=4)
+    
+    print(f"Data has been exported to {file_name}.")
+
+def export_to_csv(file_name: str):
+    conn = sqlite3.connect(game_log)
+    curs = conn.cursor()
+    curs.execute("SELECT * FROM game_log;")
+    rows = curs.fetchall()
+    conn.close()
+
+    with open(file_name, 'w', newline='', encoding='utf-8') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["id", "game_name", "platform", "genre", "hours_played", "year_started", "year_completed", "status"])
+        writer.writerows(rows)
+
+    print(f"Data has been exported to {file_name}.")
+
 # -----------------------------
 
 #### Menu System
+
+# probably will update to make main menu smaller with more submenus? tk
 def main_menu():
     print("")
     print("Personal Game Log")
     print("-----------------------")
     print("1. Add a new game")
     print("2. View all logged games")
-    print("3. Add additional hours to hours played")
-    print("4. Update game status")
-    print("5. Update additional game details")
+    print("3. Update game details, status, or add hours")
+    print("4. Delete a game")
+    print("5. Export data to JSON or CSV")
     print("6. Exit")    
 
-def sub_menu():
+def update_sub_menu():
     print("")
     print("Update Game Details")
     print("-----------------------")
     print("1. Update game name")
     print("2. Update platform")
-    print("3. Update total hours played")
-    print("4. Update year started")
-    print("5. Update year completed")
-    print("6. Back to main menu")
+    print("3. Add additional hours to total hours played")
+    print("4. Update total hours played")
+    print("5. Update year started")
+    print("6. Update year completed")
+    print("7. Update game status")
+    print("8. Back to main menu")
 
 def main():
     db_setup()
@@ -192,38 +261,25 @@ def main():
             game_name = input("Game name: ")
             platform = input("Platform: ")
             genre = input("Genre: ")
-            hours_played = float(input("Hours played or leave blank: "))
-            if hours_played == "":
-                hours_played = 0
-            year_started = input("Year started (YYYY) or leave blank: ")
+            hours_played = float(input("Hours played: "))
+            year_started = str(input("Year started (YYYY) or leave blank: "))
             if year_started.strip() == "":
                 year_started = None
-            year_completed = input("Year completed, finished, or abandoned (YYYY) or leave blank: ")
+            year_completed = str(input("Year completed, finished, or abandoned (YYYY) or leave blank: "))
             if year_completed.strip() == "":
                 year_completed = None
             status = input("Status of game (Playing, Finished, Completed, Abandoned, Endless): ")
             status_options = ["playing", "finished", "completed", "abandoned", "endless"]
             if status.strip().lower() not in status_options:
                 status  = input("The entered response is not an option. Please choose between playing, finished, completed, abandoned, or endless: ")
-            add_game(game_name, platform, genre, year_started, year_completed, status)
+            add_game(game_name, platform, genre, hours_played, year_started, year_completed, status)
 
         elif choice == "2":
             view_all_games()
 
         elif choice == "3":
-            game_id = int(input("Game ID: "))
-            hours = float(input("Additional hours: "))
-            add_hours(game_id, hours)
-
-        elif choice == "4":
-            game_id = int(input("Game ID: "))
-            status = input("Updated game status (Playing, Finished, Completed, Abandoned, or Endless): ")
-            if status.strip().lower() not in status_options:
-                status  = input("The entered response is not an option. Please choose between playing, finished, completed, abandoned, or endless: ")
-
-        elif choice == "5":
             while True:
-                sub_menu()
+                update_sub_menu()
                 sub_choice = input("Choose an option (number of choice): ")
                 if sub_choice == "1":
                     #game name
@@ -238,30 +294,59 @@ def main():
                     update_platform(game_id, platform)
 
                 elif sub_choice == "3":
+                    #add hours
+                    game_id = int(input("Game ID: "))
+                    hours = float(input("Additional hours: "))
+                    add_hours(game_id, hours)
+
+                elif sub_choice == "4":
                     #total hours
                     game_id = int(input("Game ID: "))
                     hours_played = input("Updated TOTAL number of hours played: ")
                     update_hours(game_id, hours_played)
 
-                elif sub_choice == "4":
+                elif sub_choice == "5":
                     #year started
                     game_id = int(input("Game ID: "))
                     year_started = input("Updated start year: ")
                     update_start_year(game_id, year_started)
 
-                elif sub_choice == "5":
+                elif sub_choice == "6":
                     #year completed
                     game_id = int(input("Game ID: "))
                     year_completed = input("Updated end year: ")
                     update_end_year(game_id, year_completed)
                 
-                elif sub_choice == "6":
+                elif sub_choice == "7":
+                    #status
+                    game_id = int(input("Game ID: "))
+                    status = input("Updated game status (Playing, Finished, Completed, Abandoned, or Endless): ")
+                    if status.strip().lower() not in status_options:
+                        status = input("The entered response is not an option. Please choose between playing, finished, completed, abandoned, or endless: ")
+                    update_status(game_id, status)
+
+                elif sub_choice == "8":
                     #exit to main menu
                     main_menu()
                     break
 
                 else:
                     print("Not an option, try again.")
+                    
+        elif choice == "4":
+            game_id = int(input("Game ID to delete: "))
+            delete_game(game_id)
+
+        elif choice == "5":
+            export_choice = input("Export to JSON or CSV? (Enter 1 for JSON or 2 for CSV): ")
+            if export_choice == "1":
+                file_name = "games_log.json"
+                export_to_json(file_name)
+            elif export_choice == "2":
+                file_name = "games_log.csv"
+                export_to_csv(file_name)
+            else:
+                print("Invalid choice. Please enter 1 for JSON or 2 for CSV.")
 
         elif choice == "6":
             print("Goodbye!")
